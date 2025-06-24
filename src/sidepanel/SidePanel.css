@@ -88,6 +88,101 @@ a {
   background-color: #fff;
 }
 
+/* Upload Locations Styles */
+.upload-locations-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.upload-location {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 1rem;
+  background-color: #fafafa;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.upload-location.active {
+  border-color: #2ecc71;
+  background-color: rgba(46, 204, 113, 0.05);
+  box-shadow: 0 2px 8px rgba(46, 204, 113, 0.1);
+}
+
+.upload-location-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.set-active-button {
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  background-color: #61dafb;
+  color: #fff;
+}
+
+.set-active-button:hover:not(:disabled) {
+  background-color: #2ecc71;
+}
+
+.set-active-button.active {
+  background-color: #2ecc71;
+  cursor: default;
+}
+
+.set-active-button:disabled {
+  opacity: 1;
+}
+
+.remove-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff6b6b;
+  transition: background-color 0.2s;
+}
+
+.remove-button:hover {
+  background-color: rgba(255, 107, 107, 0.1);
+}
+
+.add-location-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  background: none;
+  color: #61dafb;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 0.5rem;
+}
+
+.add-location-button:hover {
+  background-color: rgba(97, 218, 251, 0.05);
+  border-color: #61dafb;
+}
+
+.add-location-button svg {
+  color: #61dafb;
+}
+
 .form-header {
   display: flex;
   justify-content: space-between;

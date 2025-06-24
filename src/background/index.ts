@@ -1,13 +1,19 @@
 console.log('SeedHelper background service is running')
 
 // Define interfaces for our configuration
+interface UploadLocation {
+  id: string
+  directory: string
+  label: string
+  isActive: boolean
+}
+
 interface RuTorrentConfig {
   serverUrl: string
   username: string
   password: string
   authEnabled: boolean
-  defaultDirectory: string
-  defaultLabel: string
+  uploadLocations: UploadLocation[]
 }
 
 // Listen for download events
@@ -30,6 +36,16 @@ chrome.downloads.onCreated.addListener(async (downloadItem) => {
           return
         }
 
+        // Ensure backward compatibility with old config format
+        if (!config.uploadLocations) {
+          config.uploadLocations = [{
+            id: '1',
+            directory: (config as any).defaultDirectory || '',
+            label: (config as any).defaultLabel || '',
+            isActive: true
+          }]
+        }
+
         // Upload the torrent to ruTorrent
         uploadTorrentToRuTorrent(downloadItem.url, config, getTorrentFileName(downloadItem.url))
       })
@@ -47,18 +63,21 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
     const response = await fetch(torrentUrl)
     const torrentBlob = await response.blob()
 
+    // Find active upload location
+    const activeLocation = config.uploadLocations.find(location => location.isActive) || config.uploadLocations[0]
+
     // Create form data for upload
     const formData = new FormData()
     formData.append('torrent_file', torrentBlob, fileName)
     
     // Add directory parameter if specified
-    if (config.defaultDirectory) {
-      formData.append('dir_edit', config.defaultDirectory)
+    if (activeLocation.directory) {
+      formData.append('dir_edit', activeLocation.directory)
     }
     
     // Add label parameter if specified
-    if (config.defaultLabel) {
-      formData.append('label', config.defaultLabel)
+    if (activeLocation.label) {
+      formData.append('label', activeLocation.label)
     }
 
     // Prepare the request
@@ -85,7 +104,7 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
     }
 
     // Show success alert
-    showUploadSuccessAlert(fileName, config)
+    showUploadSuccessAlert(fileName, config, activeLocation)
     
     // Notify user of success
     notifyUser('SeedHelper', `Torrent "${fileName}" successfully uploaded to ruTorrent`)
@@ -98,14 +117,14 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
 }
 
 // Function to show upload success alert
-function showUploadSuccessAlert(fileName: string, config: RuTorrentConfig) {
+function showUploadSuccessAlert(fileName: string, config: RuTorrentConfig, activeLocation: UploadLocation) {
   // Create and inject alert element
   chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
     if (tabs[0]?.id) {
       chrome.scripting.executeScript({
         target: {tabId: tabs[0].id},
         func: createSuccessAlert,
-        args: [fileName, config.serverUrl, config.defaultDirectory, config.defaultLabel]
+        args: [fileName, config.serverUrl, activeLocation.directory, activeLocation.label]
       }).catch(error => {
         console.error("Failed to inject alert script:", error);
       });

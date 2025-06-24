@@ -2,13 +2,19 @@ import { useState, useEffect } from 'react'
 
 import './SidePanel.css'
 
+interface UploadLocation {
+  id: string
+  directory: string
+  label: string
+  isActive: boolean
+}
+
 interface ServerConfig {
   serverUrl: string
   username: string
   password: string
   authEnabled: boolean
-  defaultDirectory: string
-  defaultLabel: string
+  uploadLocations: UploadLocation[]
 }
 
 export const SidePanel = () => {
@@ -17,8 +23,7 @@ export const SidePanel = () => {
     username: '',
     password: '',
     authEnabled: false,
-    defaultDirectory: '',
-    defaultLabel: ''
+    uploadLocations: [{ id: '1', directory: '', label: '', isActive: true }]
   })
   const [saveStatus, setSaveStatus] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -32,111 +37,205 @@ export const SidePanel = () => {
   useEffect(() => {
     chrome.storage.sync.get(['rutorrentConfig'], (result) => {
       if (result.rutorrentConfig) {
-        setServerConfig(result.rutorrentConfig)
-        setIsEditing(false) // Start with fields disabled if config exists
+        // Ensure backward compatibility with old config format
+        const config = { ...result.rutorrentConfig };
+
+        // Convert old format to new format if needed
+        if (!config.uploadLocations) {
+          config.uploadLocations = [{
+            id: '1',
+            directory: config.defaultDirectory || '',
+            label: config.defaultLabel || '',
+            isActive: true
+          }];
+
+          // Remove old properties
+          delete config.defaultDirectory;
+          delete config.defaultLabel;
+        }
+
+        setServerConfig(config);
+        setIsEditing(false); // Start with fields disabled if config exists
 
         // Check if server is configured
-        const isConfigured = result.rutorrentConfig.serverUrl && result.rutorrentConfig.serverUrl.trim() !== '';
-        setIsServerConfigured(isConfigured)
+        const isConfigured = config.serverUrl && config.serverUrl.trim() !== '';
+        setIsServerConfigured(isConfigured);
 
         // Set initial active accordion based on configuration state
-        setActiveAccordion(isConfigured ? 'upload' : 'server')
+        setActiveAccordion(isConfigured ? 'upload' : 'server');
       }
-    })
-  }, [])
+    });
+  }, []);
 
   // Handle input changes for server config
   const handleServerConfigChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target
+    const { name, value, type, checked } = e.target;
     setServerConfig({
       ...serverConfig,
       [name]: type === 'checkbox' ? checked : value
-    })
-  }
+    });
+  };
 
-  // Handle input changes for upload settings and save automatically
-  const handleUploadSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
+  // Handle input changes for upload locations
+  const handleUploadLocationChange = (
+    id: string,
+    field: 'directory' | 'label',
+    value: string
+  ) => {
+    const updatedLocations = serverConfig.uploadLocations.map(location =>
+      location.id === id ? { ...location, [field]: value } : location
+    );
+
     const updatedConfig = {
       ...serverConfig,
-      [name]: value
-    }
+      uploadLocations: updatedLocations
+    };
 
     // Update local state
-    setServerConfig(updatedConfig)
+    setServerConfig(updatedConfig);
 
     // Save to storage
-    chrome.storage.sync.set({ rutorrentConfig: updatedConfig })
-  }
+    chrome.storage.sync.set({ rutorrentConfig: updatedConfig });
+  };
+
+  // Set active upload location
+  const setActiveLocation = (id: string) => {
+    const updatedLocations = serverConfig.uploadLocations.map(location => ({
+      ...location,
+      isActive: location.id === id
+    }));
+
+    const updatedConfig = {
+      ...serverConfig,
+      uploadLocations: updatedLocations
+    };
+
+    // Update local state
+    setServerConfig(updatedConfig);
+
+    // Save to storage
+    chrome.storage.sync.set({ rutorrentConfig: updatedConfig });
+  };
+
+  // Add new upload location
+  const addUploadLocation = () => {
+    const newId = Date.now().toString();
+    const updatedLocations = [
+      ...serverConfig.uploadLocations,
+      { id: newId, directory: '', label: '', isActive: false }
+    ];
+
+    const updatedConfig = {
+      ...serverConfig,
+      uploadLocations: updatedLocations
+    };
+
+    // Update local state
+    setServerConfig(updatedConfig);
+
+    // Save to storage
+    chrome.storage.sync.set({ rutorrentConfig: updatedConfig });
+  };
+
+  // Remove upload location
+  const removeUploadLocation = (id: string) => {
+    // Don't allow removing the last location
+    if (serverConfig.uploadLocations.length <= 1) {
+      return;
+    }
+
+    let updatedLocations = serverConfig.uploadLocations.filter(
+      location => location.id !== id
+    );
+
+    // If we removed the active location, set the first one as active
+    if (!updatedLocations.some(location => location.isActive)) {
+      updatedLocations = updatedLocations.map((location, index) => ({
+        ...location,
+        isActive: index === 0
+      }));
+    }
+
+    const updatedConfig = {
+      ...serverConfig,
+      uploadLocations: updatedLocations
+    };
+
+    // Update local state
+    setServerConfig(updatedConfig);
+
+    // Save to storage
+    chrome.storage.sync.set({ rutorrentConfig: updatedConfig });
+  };
 
   // Enable editing mode
   const enableEditing = () => {
-    setIsEditing(true)
-  }
+    setIsEditing(true);
+  };
 
   // Save configuration
   const saveConfig = () => {
-    setIsLoading(true)
+    setIsLoading(true);
     chrome.storage.sync.set({ rutorrentConfig: serverConfig }, () => {
-      setSaveStatus('Settings saved successfully!')
-      setIsLoading(false)
-      setIsEditing(false) // Disable editing after save
+      setSaveStatus('Settings saved successfully!');
+      setIsLoading(false);
+      setIsEditing(false); // Disable editing after save
 
       // Update server configured state
-      setIsServerConfigured(!!serverConfig.serverUrl)
+      setIsServerConfigured(!!serverConfig.serverUrl);
 
       // Switch to upload settings if server is now configured
-      if (serverConfig.serverUrl && serverConfig.serverUrl.trim() !== '') {
-        setActiveAccordion('upload')
+      if (!!serverConfig.serverUrl) {
+        setActiveAccordion('upload');
       }
 
-      setTimeout(() => setSaveStatus(''), 3000)
-    })
-  }
+      setTimeout(() => setSaveStatus(''), 3000);
+    });
+  };
 
   // Test connection
   const testConnection = () => {
     // Basic URL validation
     if (!serverConfig.serverUrl) {
-      setSaveStatus('Error: Server URL is required')
-      setIsEditing(true) // Enable editing if validation fails
-      return
+      setSaveStatus('Error: Server URL is required');
+      setIsEditing(true); // Enable editing if validation fails
+      return;
     }
 
     try {
       // Create URL object to validate the URL format
-      new URL(serverConfig.serverUrl)
+      new URL(serverConfig.serverUrl);
 
-      setIsLoading(true)
-      setSaveStatus('Testing connection...')
+      setIsLoading(true);
+      setSaveStatus('Testing connection...');
 
       // Send test connection request to background script
       chrome.runtime.sendMessage(
         { type: 'TEST_CONNECTION', config: serverConfig },
         (response) => {
-          setIsLoading(false)
+          setIsLoading(false);
           if (response && response.success) {
-            setSaveStatus(`Connection successful!`)
-            setIsEditing(false) // Keep fields disabled on success
-            setIsServerConfigured(true)
-            setActiveAccordion('upload') // Switch to upload settings on success
+            setSaveStatus(`Connection successful!`);
+            setIsEditing(false); // Keep fields disabled on success
+            setIsServerConfigured(true);
+            setActiveAccordion('upload'); // Switch to upload settings on success
           } else {
-            setSaveStatus(`Error: ${response?.message || 'Connection failed'}`)
-            setIsEditing(true) // Enable editing on failure
+            setSaveStatus(`Error: ${response?.message || 'Connection failed'}`);
+            setIsEditing(true); // Enable editing on failure
           }
-          setTimeout(() => setSaveStatus(''), 5000)
+          setTimeout(() => setSaveStatus(''), 5000);
         }
-      )
+      );
     } catch (error) {
-      setSaveStatus('Error: Invalid server URL format')
-      setIsEditing(true) // Enable editing if URL format is invalid
+      setSaveStatus('Error: Invalid server URL format');
+      setIsEditing(true); // Enable editing if URL format is invalid
     }
-  }
+  };
 
   // Toggle accordion sections
   const toggleAccordion = (section: string) => {
-    setActiveAccordion(activeAccordion === section ? null : section)
-  }
+    setActiveAccordion(activeAccordion === section ? null : section);
+  };
 
   return (
     <main className="sidepanel-container">
@@ -265,30 +364,71 @@ export const SidePanel = () => {
 
         {activeAccordion === 'upload' && (
           <div className="accordion-content">
-            <div className="form-group">
-              <label htmlFor="defaultDirectory">Default Directory:</label>
-              <input
-                type="text"
-                id="defaultDirectory"
-                name="defaultDirectory"
-                value={serverConfig.defaultDirectory}
-                onChange={handleUploadSettingsChange}
-                placeholder="/downloads"
-              />
-              <small>Leave empty for default directory or specify a path (e.g., /downloads/movies)</small>
-            </div>
+            <div className="upload-locations-container">
+              {serverConfig.uploadLocations.map((location) => (
+                <div
+                  key={location.id}
+                  className={`upload-location ${location.isActive ? 'active' : ''}`}
+                >
+                  <div className="upload-location-header">
+                    <button
+                      onClick={() => setActiveLocation(location.id)}
+                      className={`set-active-button ${location.isActive ? 'active' : ''}`}
+                      disabled={location.isActive}
+                    >
+                      {location.isActive ? 'Active' : 'Set Active'}
+                    </button>
 
-            <div className="form-group">
-              <label htmlFor="defaultLabel">Default Label:</label>
-              <input
-                type="text"
-                id="defaultLabel"
-                name="defaultLabel"
-                value={serverConfig.defaultLabel}
-                onChange={handleUploadSettingsChange}
-                placeholder="movies"
-              />
-              <small>Leave empty for no label or specify a label (e.g., movies, tv, music)</small>
+                    {serverConfig.uploadLocations.length > 1 && (
+                      <button
+                        onClick={() => removeUploadLocation(location.id)}
+                        className="remove-button"
+                        title="Remove location"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor={`directory-${location.id}`}>Directory:</label>
+                    <input
+                      type="text"
+                      id={`directory-${location.id}`}
+                      value={location.directory}
+                      onChange={(e) => handleUploadLocationChange(location.id, 'directory', e.target.value)}
+                      placeholder="/downloads"
+                    />
+                    <small>Path where torrents will be saved (e.g., /downloads/movies)</small>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor={`label-${location.id}`}>Label:</label>
+                    <input
+                      type="text"
+                      id={`label-${location.id}`}
+                      value={location.label}
+                      onChange={(e) => handleUploadLocationChange(location.id, 'label', e.target.value)}
+                      placeholder="movies"
+                    />
+                    <small>Category label for the torrent (e.g., movies, tv, music)</small>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                onClick={addUploadLocation}
+                className="add-location-button"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add Location
+              </button>
             </div>
           </div>
         )}
@@ -301,6 +441,8 @@ export const SidePanel = () => {
         <p>This extension will intercept .torrent file downloads and automatically upload them to your ruTorrent client.</p>
         <ol>
           <li>Configure your ruTorrent server details above</li>
+          <li>Set up one or more upload locations with directories and labels</li>
+          <li>Select which location is active using the "Set Active" button</li>
           <li>Click any .torrent download link on a website</li>
           <li>The extension will upload the torrent directly to your ruTorrent client</li>
           <li>You'll receive a notification when the upload is complete</li>
@@ -313,5 +455,3 @@ export const SidePanel = () => {
     </main>
   )
 }
-
-export default SidePanel
