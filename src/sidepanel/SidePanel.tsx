@@ -7,6 +7,8 @@ interface ServerConfig {
   username: string
   password: string
   authEnabled: boolean
+  defaultDirectory: string
+  defaultLabel: string
 }
 
 /**
@@ -43,7 +45,9 @@ export const SidePanel = () => {
     serverUrl: '',
     username: '',
     password: '',
-    authEnabled: false
+    authEnabled: false,
+    defaultDirectory: '',
+    defaultLabel: ''
   })
   const [saveStatus, setSaveStatus] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -197,6 +201,38 @@ export const SidePanel = () => {
           </div>
         </>
       )}
+
+      <div className="form-section-divider">
+        <h4>Upload Settings</h4>
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="defaultDirectory">Default Directory:</label>
+        <input
+          type="text"
+          id="defaultDirectory"
+          name="defaultDirectory"
+          value={serverConfig.defaultDirectory}
+          onChange={handleInputChange}
+          placeholder="/downloads"
+          disabled={isLoading || !isEditing}
+        />
+        <small>Leave empty for default directory or specify a path (e.g., /downloads/movies)</small>
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="defaultLabel">Default Label:</label>
+        <input
+          type="text"
+          id="defaultLabel"
+          name="defaultLabel"
+          value={serverConfig.defaultLabel}
+          onChange={handleInputChange}
+          placeholder="movies"
+          disabled={isLoading || !isEditing}
+        />
+        <small>Leave empty for no label or specify a label (e.g., movies, tv, music)</small>
+      </div>
 
       <div className="button-group">
         {isEditing ? (

@@ -6,6 +6,8 @@ interface RuTorrentConfig {
   username: string
   password: string
   authEnabled: boolean
+  defaultDirectory: string
+  defaultLabel: string
 }
 
 // Listen for download events
@@ -48,6 +50,16 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
     // Create form data for upload
     const formData = new FormData()
     formData.append('torrent_file', torrentBlob, getTorrentFileName(torrentUrl))
+    
+    // Add directory parameter if specified
+    if (config.defaultDirectory) {
+      formData.append('dir_edit', config.defaultDirectory)
+    }
+    
+    // Add label parameter if specified
+    if (config.defaultLabel) {
+      formData.append('label', config.defaultLabel)
+    }
 
     // Prepare the request
     const uploadUrl = `${config.serverUrl.replace(/\/$/, '')}/php/addtorrent.php`
