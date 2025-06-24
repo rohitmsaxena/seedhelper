@@ -31,7 +31,7 @@ chrome.downloads.onCreated.addListener(async (downloadItem) => {
         }
 
         // Upload the torrent to ruTorrent
-        uploadTorrentToRuTorrent(downloadItem.url, config)
+        uploadTorrentToRuTorrent(downloadItem.url, config, getTorrentFileName(downloadItem.url))
       })
     } catch (error) {
       console.error('Error handling torrent download:', error)
@@ -41,7 +41,7 @@ chrome.downloads.onCreated.addListener(async (downloadItem) => {
 })
 
 // Function to upload torrent to ruTorrent
-async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentConfig) {
+async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentConfig, fileName: string) {
   try {
     // Fetch the torrent file
     const response = await fetch(torrentUrl)
@@ -49,7 +49,7 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
 
     // Create form data for upload
     const formData = new FormData()
-    formData.append('torrent_file', torrentBlob, getTorrentFileName(torrentUrl))
+    formData.append('torrent_file', torrentBlob, fileName)
     
     // Add directory parameter if specified
     if (config.defaultDirectory) {
@@ -84,14 +84,126 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
       throw new Error(`Upload failed with status: ${uploadResponse.status}`)
     }
 
+    // Show success alert
+    showUploadSuccessAlert(fileName, config)
+    
     // Notify user of success
-    notifyUser('SeedHelper', 'Torrent successfully uploaded to ruTorrent')
+    notifyUser('SeedHelper', `Torrent "${fileName}" successfully uploaded to ruTorrent`)
     console.log('Torrent uploaded successfully')
 
   } catch (error) {
     console.error('Error uploading torrent to ruTorrent:', error)
     notifyUser('SeedHelper Error', 'Failed to upload torrent to ruTorrent')
   }
+}
+
+// Function to show upload success alert
+function showUploadSuccessAlert(fileName: string, config: RuTorrentConfig) {
+  // Create and inject alert element
+  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+    if (tabs[0]?.id) {
+      chrome.scripting.executeScript({
+        target: {tabId: tabs[0].id},
+        func: createSuccessAlert,
+        args: [fileName, config.serverUrl, config.defaultDirectory, config.defaultLabel]
+      }).catch(error => {
+        console.error("Failed to inject alert script:", error);
+      });
+    }
+  });
+}
+
+// Function to be injected into the page to create the alert
+function createSuccessAlert(fileName: string, serverUrl: string, directory: string, label: string) {
+  // Create alert container
+  const alertContainer = document.createElement('div');
+  alertContainer.style.position = 'fixed';
+  alertContainer.style.top = '20px';
+  alertContainer.style.right = '20px';
+  alertContainer.style.zIndex = '9999';
+  alertContainer.style.backgroundColor = 'rgba(46, 204, 113, 0.95)';
+  alertContainer.style.color = 'white';
+  alertContainer.style.padding = '15px 20px';
+  alertContainer.style.borderRadius = '5px';
+  alertContainer.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+  alertContainer.style.maxWidth = '350px';
+  alertContainer.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  alertContainer.style.display = 'flex';
+  alertContainer.style.flexDirection = 'column';
+  alertContainer.style.transition = 'opacity 0.3s ease-in-out';
+  
+  // Create header
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'center';
+  header.style.marginBottom = '10px';
+  
+  const title = document.createElement('h4');
+  title.textContent = 'Torrent Uploaded';
+  title.style.margin = '0';
+  title.style.fontWeight = '600';
+  title.style.fontSize = '16px';
+  
+  const closeButton = document.createElement('button');
+  closeButton.textContent = '×';
+  closeButton.style.background = 'none';
+  closeButton.style.border = 'none';
+  closeButton.style.color = 'white';
+  closeButton.style.fontSize = '20px';
+  closeButton.style.cursor = 'pointer';
+  closeButton.style.padding = '0';
+  closeButton.style.marginLeft = '10px';
+  closeButton.style.lineHeight = '1';
+  closeButton.onclick = () => {
+    document.body.removeChild(alertContainer);
+  };
+  
+  header.appendChild(title);
+  header.appendChild(closeButton);
+  
+  // Create content
+  const content = document.createElement('div');
+  
+  const fileNameElem = document.createElement('p');
+  fileNameElem.textContent = `File: ${fileName}`;
+  fileNameElem.style.margin = '5px 0';
+  fileNameElem.style.fontSize = '14px';
+  
+  content.appendChild(fileNameElem);
+  
+  if (directory) {
+    const directoryElem = document.createElement('p');
+    directoryElem.textContent = `Directory: ${directory}`;
+    directoryElem.style.margin = '5px 0';
+    directoryElem.style.fontSize = '14px';
+    content.appendChild(directoryElem);
+  }
+  
+  if (label) {
+    const labelElem = document.createElement('p');
+    labelElem.textContent = `Label: ${label}`;
+    labelElem.style.margin = '5px 0';
+    labelElem.style.fontSize = '14px';
+    content.appendChild(labelElem);
+  }
+  
+  // Assemble alert
+  alertContainer.appendChild(header);
+  alertContainer.appendChild(content);
+  
+  // Add to page
+  document.body.appendChild(alertContainer);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    alertContainer.style.opacity = '0';
+    setTimeout(() => {
+      if (document.body.contains(alertContainer)) {
+        document.body.removeChild(alertContainer);
+      }
+    }, 300);
+  }, 5000);
 }
 
 // Helper function to extract filename from URL

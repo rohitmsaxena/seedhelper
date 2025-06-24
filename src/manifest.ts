@@ -46,7 +46,9 @@ export default defineManifest({
     'webRequest',
     'downloads',
     'declarativeNetRequest',
-    'notifications'
+    'notifications',
+    'scripting',
+    'activeTab'
   ],
   host_permissions: [
     "http://*/*",
