@@ -371,13 +371,12 @@ export const SidePanel = () => {
                   className={`upload-location ${location.isActive ? 'active' : ''}`}
                 >
                   <div className="upload-location-header">
-                    <button
-                      onClick={() => setActiveLocation(location.id)}
-                      className={`set-active-button ${location.isActive ? 'active' : ''}`}
-                      disabled={location.isActive}
-                    >
-                      {location.isActive ? 'Active' : 'Set Active'}
-                    </button>
+                    <span className="location-title">
+                      {location.isActive && (
+                        <span className="active-badge">Active</span>
+                      )}
+                      Location
+                    </span>
 
                     {serverConfig.uploadLocations.length > 1 && (
                       <button
@@ -416,6 +415,15 @@ export const SidePanel = () => {
                     />
                     <small>Category label for the torrent (e.g., movies, tv, music)</small>
                   </div>
+
+                  {!location.isActive && (
+                    <button
+                      onClick={() => setActiveLocation(location.id)}
+                      className="set-active-button"
+                    >
+                      Set as Active
+                    </button>
+                  )}
                 </div>
               ))}
 
@@ -442,7 +450,7 @@ export const SidePanel = () => {
         <ol>
           <li>Configure your ruTorrent server details above</li>
           <li>Set up one or more upload locations with directories and labels</li>
-          <li>Select which location is active using the "Set Active" button</li>
+          <li>Select which location is active using the popup menu</li>
           <li>Click any .torrent download link on a website</li>
           <li>The extension will upload the torrent directly to your ruTorrent client</li>
           <li>You'll receive a notification when the upload is complete</li>

@@ -2,11 +2,19 @@ import { useState, useEffect } from 'react'
 
 import './Popup.css'
 
+interface UploadLocation {
+  id: string
+  directory: string
+  label: string
+  isActive: boolean
+}
+
 interface ServerConfig {
   serverUrl: string
   username: string
   password: string
   authEnabled: boolean
+  uploadLocations: UploadLocation[]
 }
 
 export const Popup = () => {
@@ -17,18 +25,67 @@ export const Popup = () => {
     // Load configuration when popup opens
     chrome.storage.sync.get(['rutorrentConfig'], (result) => {
       if (result.rutorrentConfig && result.rutorrentConfig.serverUrl) {
-        setServerConfig(result.rutorrentConfig)
-        setIsConfigured(true)
+        // Ensure backward compatibility with old config format
+        const config = { ...result.rutorrentConfig };
+        
+        // Convert old format to new format if needed
+        if (!config.uploadLocations) {
+          config.uploadLocations = [{
+            id: '1',
+            directory: config.defaultDirectory || '',
+            label: config.defaultLabel || '',
+            isActive: true
+          }];
+          
+          // Remove old properties
+          delete config.defaultDirectory;
+          delete config.defaultLabel;
+        }
+        
+        setServerConfig(config);
+        setIsConfigured(true);
       } else {
-        setIsConfigured(false)
+        setIsConfigured(false);
       }
-    })
-  }, [])
+    });
+  }, []);
 
-  const openSidePanel = () => {
+  const openOptionsPage = () => {
     // Open the options page for configuration
     chrome.runtime.openOptionsPage();
-  }
+  };
+  
+  // Set active upload location
+  const setActiveLocation = (id: string) => {
+    if (!serverConfig) return;
+    
+    const updatedLocations = serverConfig.uploadLocations.map(location => ({
+      ...location,
+      isActive: location.id === id
+    }));
+    
+    const updatedConfig = {
+      ...serverConfig,
+      uploadLocations: updatedLocations
+    };
+    
+    // Update local state
+    setServerConfig(updatedConfig);
+    
+    // Save to storage
+    chrome.storage.sync.set({ rutorrentConfig: updatedConfig });
+  };
+  
+  // Get display name for location
+  const getLocationDisplayName = (location: UploadLocation) => {
+    if (location.label) {
+      return location.label;
+    } else if (location.directory) {
+      return location.directory.split('/').pop() || location.directory;
+    } else {
+      return "Default Location";
+    }
+  };
 
   return (
     <main className="popup-container">
@@ -52,6 +109,41 @@ export const Popup = () => {
             <span className="indicator-dot"></span>
             <span>Ready to upload torrents</span>
           </div>
+          
+          {/* Upload Locations List */}
+          {serverConfig && serverConfig.uploadLocations && serverConfig.uploadLocations.length > 0 && (
+            <div className="upload-locations">
+              <h4>Upload Locations</h4>
+              <ul className="location-list">
+                {serverConfig.uploadLocations.map(location => (
+                  <li 
+                    key={location.id} 
+                    className={`location-item ${location.isActive ? 'active' : ''}`}
+                    onClick={() => setActiveLocation(location.id)}
+                  >
+                    <label className="location-label">
+                      <input 
+                        type="radio" 
+                        name="activeLocation" 
+                        checked={location.isActive}
+                        onChange={() => setActiveLocation(location.id)}
+                      />
+                      <div className="location-details">
+                        <span className="location-name">
+                          {getLocationDisplayName(location)}
+                        </span>
+                        {location.directory && (
+                          <span className="location-path">
+                            {location.directory}
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       ) : (
         <div className="status-section">
@@ -66,7 +158,7 @@ export const Popup = () => {
       )}
       
       <div className="button-container">
-        <button onClick={openSidePanel} className="config-button">
+        <button onClick={openOptionsPage} className="config-button">
           {isConfigured ? 'Edit Configuration' : 'Configure Server'}
         </button>
       </div>
@@ -77,5 +169,3 @@ export const Popup = () => {
     </main>
   )
 }
-
-export default Popup

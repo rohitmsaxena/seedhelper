@@ -117,29 +117,40 @@ a {
   margin-bottom: 1rem;
 }
 
-.set-active-button {
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
+.location-title {
+  display: flex;
+  align-items: center;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
+  color: #555;
+}
+
+.active-badge {
+  display: inline-block;
+  background-color: #2ecc71;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  margin-right: 0.5rem;
+}
+
+.set-active-button {
   background-color: #61dafb;
-  color: #fff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  width: 100%;
 }
 
-.set-active-button:hover:not(:disabled) {
+.set-active-button:hover {
   background-color: #2ecc71;
-}
-
-.set-active-button.active {
-  background-color: #2ecc71;
-  cursor: default;
-}
-
-.set-active-button:disabled {
-  opacity: 1;
 }
 
 .remove-button {
