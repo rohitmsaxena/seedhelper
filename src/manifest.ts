@@ -1,12 +1,12 @@
 import { defineManifest } from '@crxjs/vite-plugin'
 import packageData from '../package.json'
 
-//@ts-ignore
+// @ts-ignore
 const isDev = process.env.NODE_ENV == 'development'
 
 export default defineManifest({
   name: `${packageData.displayName || packageData.name}${isDev ? ` ➡️ Dev` : ''}`,
-  description: packageData.description,
+  description: "Upload torrent files directly to ruTorrent client",
   version: packageData.version,
   manifest_version: 3,
   icons: {
@@ -40,8 +40,16 @@ export default defineManifest({
       matches: [],
     },
   ],
-  permissions: ['sidePanel', 'storage'],
-  chrome_url_overrides: {
-    newtab: 'newtab.html',
-  },
+  permissions: [
+    'sidePanel',
+    'storage',
+    'webRequest',
+    'downloads',
+    'declarativeNetRequest',
+    'notifications'
+  ],
+  host_permissions: [
+    "http://*/*",
+    "https://*/*"
+  ]
 })
