@@ -11,35 +11,6 @@ interface ServerConfig {
   defaultLabel: string
 }
 
-/**
- * The SidePanel component is a configuration panel for the SeedHelper
- * extension. It allows users to enter their ruTorrent server details,
- * enable authentication, and test their connection to the server.
- *
- * The component also displays a status message indicating whether the
- * connection test was successful or not.
- *
- * The component's state is stored in the `chrome.storage.sync` API, which
- * is a persistent storage mechanism provided by the Chrome extension
- * framework. This means that the user's configuration is saved even when
- * the user closes the browser.
- *
- * The component's state is also used to send messages to the background
- * script when the user clicks the "Test Connection" button. The background
- * script receives the message and sends a request to the ruTorrent server
- * to test the connection. The response from the server is then sent back
- * to the component, which updates its state accordingly.
- *
- * The component also renders a form with input fields for the user to
- * enter their server details. The form is rendered conditionally based on
- * whether the user has enabled authentication or not. If authentication is
- * enabled, the component renders additional input fields for the user to
- * enter their username and password.
- *
- * The component also renders a status message indicating whether the
- * connection test was successful or not. The status message is displayed
- * below the form.
- */
 export const SidePanel = () => {
   const [serverConfig, setServerConfig] = useState<ServerConfig>({
     serverUrl: '',
@@ -52,6 +23,10 @@ export const SidePanel = () => {
   const [saveStatus, setSaveStatus] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isEditing, setIsEditing] = useState<boolean>(true)
+  const [isServerConfigured, setIsServerConfigured] = useState<boolean>(false)
+
+  // Accordion state - only one can be open at a time
+  const [activeAccordion, setActiveAccordion] = useState<string | null>('server')
 
   // Load saved configuration on component mount
   useEffect(() => {
@@ -59,17 +34,39 @@ export const SidePanel = () => {
       if (result.rutorrentConfig) {
         setServerConfig(result.rutorrentConfig)
         setIsEditing(false) // Start with fields disabled if config exists
+
+        // Check if server is configured
+        const isConfigured = result.rutorrentConfig.serverUrl && result.rutorrentConfig.serverUrl.trim() !== '';
+        setIsServerConfigured(isConfigured)
+
+        // Set initial active accordion based on configuration state
+        setActiveAccordion(isConfigured ? 'upload' : 'server')
       }
     })
   }, [])
 
-  // Handle input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle input changes for server config
+  const handleServerConfigChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
     setServerConfig({
       ...serverConfig,
       [name]: type === 'checkbox' ? checked : value
     })
+  }
+
+  // Handle input changes for upload settings and save automatically
+  const handleUploadSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    const updatedConfig = {
+      ...serverConfig,
+      [name]: value
+    }
+
+    // Update local state
+    setServerConfig(updatedConfig)
+
+    // Save to storage
+    chrome.storage.sync.set({ rutorrentConfig: updatedConfig })
   }
 
   // Enable editing mode
@@ -84,6 +81,15 @@ export const SidePanel = () => {
       setSaveStatus('Settings saved successfully!')
       setIsLoading(false)
       setIsEditing(false) // Disable editing after save
+
+      // Update server configured state
+      setIsServerConfigured(!!serverConfig.serverUrl)
+
+      // Switch to upload settings if server is now configured
+      if (serverConfig.serverUrl && serverConfig.serverUrl.trim() !== '') {
+        setActiveAccordion('upload')
+      }
+
       setTimeout(() => setSaveStatus(''), 3000)
     })
   }
@@ -112,6 +118,8 @@ export const SidePanel = () => {
           if (response && response.success) {
             setSaveStatus(`Connection successful!`)
             setIsEditing(false) // Keep fields disabled on success
+            setIsServerConfigured(true)
+            setActiveAccordion('upload') // Switch to upload settings on success
           } else {
             setSaveStatus(`Error: ${response?.message || 'Connection failed'}`)
             setIsEditing(true) // Enable editing on failure
@@ -125,132 +133,164 @@ export const SidePanel = () => {
     }
   }
 
+  // Toggle accordion sections
+  const toggleAccordion = (section: string) => {
+    setActiveAccordion(activeAccordion === section ? null : section)
+  }
+
   return (
     <main className="sidepanel-container">
       <h3>ruTorrent Server Settings</h3>
 
-      <div className="form-header">
-        <h4>Server Configuration</h4>
-        {!isEditing && (
-          <button 
-            onClick={enableEditing} 
-            className="edit-button"
-            title="Edit configuration"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-          </button>
+      {/* Server Configuration Accordion */}
+      <div className="accordion">
+        <div
+          className="accordion-header"
+          onClick={() => toggleAccordion('server')}
+        >
+          <h4>Server Configuration</h4>
+          <div className="accordion-controls">
+            {!isEditing && isServerConfigured && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  enableEditing();
+                }}
+                className="edit-button"
+                title="Edit configuration"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+              </button>
+            )}
+            <span className={`accordion-arrow ${activeAccordion === 'server' ? 'open' : ''}`}>▼</span>
+          </div>
+        </div>
+
+        {activeAccordion === 'server' && (
+          <div className="accordion-content">
+            <div className="form-group">
+              <label htmlFor="serverUrl">Server URL:</label>
+              <input
+                type="text"
+                id="serverUrl"
+                name="serverUrl"
+                value={serverConfig.serverUrl}
+                onChange={handleServerConfigChange}
+                placeholder="https://your-rutorrent-server.com/rutorrent/"
+                disabled={isLoading || !isEditing}
+              />
+              <small>Include the full path to ruTorrent (e.g., https://example.com/rutorrent/)</small>
+            </div>
+
+            <div className="form-group">
+              <label>
+                <input
+                  type="checkbox"
+                  name="authEnabled"
+                  checked={serverConfig.authEnabled}
+                  onChange={handleServerConfigChange}
+                  disabled={isLoading || !isEditing}
+                />
+                Enable Authentication
+              </label>
+            </div>
+
+            {serverConfig.authEnabled && (
+              <>
+                <div className="form-group">
+                  <label htmlFor="username">Username:</label>
+                  <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    value={serverConfig.username}
+                    onChange={handleServerConfigChange}
+                    placeholder="Username"
+                    disabled={isLoading || !isEditing}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="password">Password:</label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={serverConfig.password}
+                    onChange={handleServerConfigChange}
+                    placeholder="Password"
+                    disabled={isLoading || !isEditing}
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="button-group">
+              {isEditing ? (
+                <button
+                  onClick={saveConfig}
+                  className="primary-button"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Saving...' : 'Save Settings'}
+                </button>
+              ) : (
+                <button
+                  onClick={testConnection}
+                  className="primary-button"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Testing...' : 'Test Connection'}
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
-      <div className="form-group">
-        <label htmlFor="serverUrl">Server URL:</label>
-        <input
-          type="text"
-          id="serverUrl"
-          name="serverUrl"
-          value={serverConfig.serverUrl}
-          onChange={handleInputChange}
-          placeholder="https://your-rutorrent-server.com/rutorrent/"
-          disabled={isLoading || !isEditing}
-        />
-        <small>Include the full path to ruTorrent (e.g., https://example.com/rutorrent/)</small>
-      </div>
-
-      <div className="form-group">
-        <label>
-          <input
-            type="checkbox"
-            name="authEnabled"
-            checked={serverConfig.authEnabled}
-            onChange={handleInputChange}
-            disabled={isLoading || !isEditing}
-          />
-          Enable Authentication
-        </label>
-      </div>
-
-      {serverConfig.authEnabled && (
-        <>
-          <div className="form-group">
-            <label htmlFor="username">Username:</label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              value={serverConfig.username}
-              onChange={handleInputChange}
-              placeholder="Username"
-              disabled={isLoading || !isEditing}
-            />
+      {/* Upload Settings Accordion */}
+      <div className="accordion">
+        <div
+          className="accordion-header"
+          onClick={() => toggleAccordion('upload')}
+        >
+          <h4>Upload Settings</h4>
+          <div className="accordion-controls">
+            <span className={`accordion-arrow ${activeAccordion === 'upload' ? 'open' : ''}`}>▼</span>
           </div>
+        </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Password:</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={serverConfig.password}
-              onChange={handleInputChange}
-              placeholder="Password"
-              disabled={isLoading || !isEditing}
-            />
+        {activeAccordion === 'upload' && (
+          <div className="accordion-content">
+            <div className="form-group">
+              <label htmlFor="defaultDirectory">Default Directory:</label>
+              <input
+                type="text"
+                id="defaultDirectory"
+                name="defaultDirectory"
+                value={serverConfig.defaultDirectory}
+                onChange={handleUploadSettingsChange}
+                placeholder="/downloads"
+              />
+              <small>Leave empty for default directory or specify a path (e.g., /downloads/movies)</small>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="defaultLabel">Default Label:</label>
+              <input
+                type="text"
+                id="defaultLabel"
+                name="defaultLabel"
+                value={serverConfig.defaultLabel}
+                onChange={handleUploadSettingsChange}
+                placeholder="movies"
+              />
+              <small>Leave empty for no label or specify a label (e.g., movies, tv, music)</small>
+            </div>
           </div>
-        </>
-      )}
-
-      <div className="form-section-divider">
-        <h4>Upload Settings</h4>
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="defaultDirectory">Default Directory:</label>
-        <input
-          type="text"
-          id="defaultDirectory"
-          name="defaultDirectory"
-          value={serverConfig.defaultDirectory}
-          onChange={handleInputChange}
-          placeholder="/downloads"
-          disabled={isLoading || !isEditing}
-        />
-        <small>Leave empty for default directory or specify a path (e.g., /downloads/movies)</small>
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="defaultLabel">Default Label:</label>
-        <input
-          type="text"
-          id="defaultLabel"
-          name="defaultLabel"
-          value={serverConfig.defaultLabel}
-          onChange={handleInputChange}
-          placeholder="movies"
-          disabled={isLoading || !isEditing}
-        />
-        <small>Leave empty for no label or specify a label (e.g., movies, tv, music)</small>
-      </div>
-
-      <div className="button-group">
-        {isEditing ? (
-          <button
-            onClick={saveConfig}
-            className="primary-button"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Saving...' : 'Save Settings'}
-          </button>
-        ) : (
-          <button
-            onClick={testConnection}
-            className="primary-button"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Testing...' : 'Test Connection'}
-          </button>
         )}
       </div>
 
