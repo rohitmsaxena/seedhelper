@@ -134,22 +134,28 @@ h4 {
 .location-label input[type="radio"] {
   margin-right: 0.5rem;
   margin-top: 0.2rem;
+  flex-shrink: 0;
 }
 
 .location-details {
   display: flex;
   flex-direction: column;
+  flex-grow: 1;
+  min-width: 0; /* This is important for text wrapping */
 }
 
 .location-name {
   font-weight: 500;
   color: #333;
+  word-break: break-word;
 }
 
 .location-path {
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   color: #777;
   margin-top: 0.1rem;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .button-container {

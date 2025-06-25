@@ -113,7 +113,6 @@ export const Popup = () => {
           {/* Upload Locations List */}
           {serverConfig && serverConfig.uploadLocations && serverConfig.uploadLocations.length > 0 && (
             <div className="upload-locations">
-              <h4>Upload Locations</h4>
               <ul className="location-list">
                 {serverConfig.uploadLocations.map(location => (
                   <li 
