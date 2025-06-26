@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import './SidePanel.css'
 
@@ -29,6 +29,7 @@ export const SidePanel = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isEditing, setIsEditing] = useState<boolean>(true)
   const [isServerConfigured, setIsServerConfigured] = useState<boolean>(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Accordion state - only one can be open at a time
   const [activeAccordion, setActiveAccordion] = useState<string | null>('server')
@@ -237,6 +238,106 @@ export const SidePanel = () => {
     setActiveAccordion(activeAccordion === section ? null : section);
   };
 
+  // Export configuration to JSON file
+  const exportConfig = () => {
+    try {
+      // Create a JSON string of the current configuration
+      const configJson = JSON.stringify(serverConfig, null, 2);
+      
+      // Create a Blob with the JSON data
+      const blob = new Blob([configJson], { type: 'application/json' });
+      
+      // Create a URL for the Blob
+      const url = URL.createObjectURL(blob);
+      
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'seedhelper-config.json';
+      
+      // Append the link to the body
+      document.body.appendChild(link);
+      
+      // Trigger the download
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setSaveStatus('Configuration exported successfully!');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (error) {
+      console.error('Error exporting configuration:', error);
+      setSaveStatus(`Error exporting configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setTimeout(() => setSaveStatus(''), 5000);
+    }
+  };
+  
+  // Trigger file input click
+  const triggerImportFile = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  // Import configuration from JSON file
+  const importConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedConfig = JSON.parse(content) as ServerConfig;
+        
+        // Validate the imported configuration
+        if (!importedConfig.serverUrl) {
+          throw new Error('Invalid configuration: Server URL is required');
+        }
+        
+        // Ensure uploadLocations exists and is valid
+        if (!importedConfig.uploadLocations || !Array.isArray(importedConfig.uploadLocations)) {
+          importedConfig.uploadLocations = [{ id: '1', directory: '', label: '', isActive: true }];
+        }
+        
+        // Ensure at least one location is active
+        if (!importedConfig.uploadLocations.some(loc => loc.isActive)) {
+          importedConfig.uploadLocations[0].isActive = true;
+        }
+        
+        // Update state
+        setServerConfig(importedConfig);
+        
+        // Save to storage
+        chrome.storage.sync.set({ rutorrentConfig: importedConfig }, () => {
+          setSaveStatus('Configuration imported successfully!');
+          setIsEditing(false);
+          setIsServerConfigured(!!importedConfig.serverUrl);
+          setTimeout(() => setSaveStatus(''), 3000);
+        });
+      } catch (error) {
+        console.error('Error importing configuration:', error);
+        setSaveStatus(`Error importing configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setTimeout(() => setSaveStatus(''), 5000);
+      }
+    };
+    
+    reader.onerror = () => {
+      setSaveStatus('Error reading the file');
+      setTimeout(() => setSaveStatus(''), 3000);
+    };
+    
+    reader.readAsText(file);
+    
+    // Reset the file input
+    if (event.target) {
+      event.target.value = '';
+    }
+  };
+
   return (
     <main className="sidepanel-container">
       <h3>ruTorrent Server Settings</h3>
@@ -437,6 +538,72 @@ export const SidePanel = () => {
                 </svg>
                 Add Location
               </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Import/Export Accordion */}
+      <div className="accordion">
+        <div
+          className="accordion-header"
+          onClick={() => toggleAccordion('importexport')}
+        >
+          <h4>Import / Export Settings</h4>
+          <div className="accordion-controls">
+            <span className={`accordion-arrow ${activeAccordion === 'importexport' ? 'open' : ''}`}>▼</span>
+          </div>
+        </div>
+
+        {activeAccordion === 'importexport' && (
+          <div className="accordion-content">
+            <div className="import-export-container">
+              <p className="import-export-description">
+                You can export your current configuration to a JSON file and import it later or on another device.
+              </p>
+              
+              <div className="button-group">
+                <button
+                  onClick={exportConfig}
+                  className="primary-button"
+                  disabled={!isServerConfigured || isLoading}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Export Configuration
+                </button>
+                
+                <button
+                  onClick={triggerImportFile}
+                  className="secondary-button"
+                  disabled={isLoading}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  Import Configuration
+                </button>
+                
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={importConfig}
+                  accept=".json"
+                  style={{ display: 'none' }}
+                />
+              </div>
+              
+              <div className="import-export-note">
+                <small>
+                  Note: Importing a configuration will overwrite your current settings.
+                  Make sure to export your current configuration first if you want to keep it.
+                </small>
+              </div>
             </div>
           </div>
         )}
