@@ -241,6 +241,8 @@ a {
 
 .form-group {
   margin-bottom: 1.2rem;
+  padding-right: 0;
+  padding-left: 0;
 }
 
 .form-group label {
@@ -256,6 +258,10 @@ a {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 1rem;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .form-group input[type="checkbox"] {
