@@ -48,7 +48,8 @@ export default defineManifest({
     'declarativeNetRequest',
     'notifications',
     'scripting',
-    'activeTab'
+    'activeTab',
+    'contextMenus'
   ],
   host_permissions: [
     "http://*/*",

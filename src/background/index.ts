@@ -69,12 +69,12 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
     // Create form data for upload
     const formData = new FormData()
     formData.append('torrent_file', torrentBlob, fileName)
-    
+
     // Add directory parameter if specified
     if (activeLocation.directory) {
       formData.append('dir_edit', activeLocation.directory)
     }
-    
+
     // Add label parameter if specified
     if (activeLocation.label) {
       formData.append('label', activeLocation.label)
@@ -105,7 +105,7 @@ async function uploadTorrentToRuTorrent(torrentUrl: string, config: RuTorrentCon
 
     // Show success alert
     showUploadSuccessAlert(fileName, config, activeLocation)
-    
+
     // Notify user of success
     notifyUser('SeedHelper', `Torrent "${fileName}" successfully uploaded to ruTorrent`)
     console.log('Torrent uploaded successfully')
@@ -150,20 +150,20 @@ function createSuccessAlert(fileName: string, serverUrl: string, directory: stri
   alertContainer.style.display = 'flex';
   alertContainer.style.flexDirection = 'column';
   alertContainer.style.transition = 'opacity 0.3s ease-in-out';
-  
+
   // Create header
   const header = document.createElement('div');
   header.style.display = 'flex';
   header.style.justifyContent = 'space-between';
   header.style.alignItems = 'center';
   header.style.marginBottom = '10px';
-  
+
   const title = document.createElement('h4');
   title.textContent = 'Torrent Uploaded';
   title.style.margin = '0';
   title.style.fontWeight = '600';
   title.style.fontSize = '16px';
-  
+
   const closeButton = document.createElement('button');
   closeButton.textContent = '×';
   closeButton.style.background = 'none';
@@ -177,20 +177,20 @@ function createSuccessAlert(fileName: string, serverUrl: string, directory: stri
   closeButton.onclick = () => {
     document.body.removeChild(alertContainer);
   };
-  
+
   header.appendChild(title);
   header.appendChild(closeButton);
-  
+
   // Create content
   const content = document.createElement('div');
-  
+
   const fileNameElem = document.createElement('p');
   fileNameElem.textContent = `File: ${fileName}`;
   fileNameElem.style.margin = '5px 0';
   fileNameElem.style.fontSize = '14px';
-  
+
   content.appendChild(fileNameElem);
-  
+
   if (directory) {
     const directoryElem = document.createElement('p');
     directoryElem.textContent = `Directory: ${directory}`;
@@ -198,7 +198,7 @@ function createSuccessAlert(fileName: string, serverUrl: string, directory: stri
     directoryElem.style.fontSize = '14px';
     content.appendChild(directoryElem);
   }
-  
+
   if (label) {
     const labelElem = document.createElement('p');
     labelElem.textContent = `Label: ${label}`;
@@ -206,14 +206,14 @@ function createSuccessAlert(fileName: string, serverUrl: string, directory: stri
     labelElem.style.fontSize = '14px';
     content.appendChild(labelElem);
   }
-  
+
   // Assemble alert
   alertContainer.appendChild(header);
   alertContainer.appendChild(content);
-  
+
   // Add to page
   document.body.appendChild(alertContainer);
-  
+
   // Auto-remove after 5 seconds
   setTimeout(() => {
     alertContainer.style.opacity = '0';
@@ -296,3 +296,187 @@ async function testRuTorrentConnection(config: RuTorrentConfig): Promise<string>
     throw new Error(`Connection failed: ${error instanceof Error ? error.message : "error"}`)
   }
 }
+
+// Initialize context menus when extension is installed or updated
+chrome.runtime.onInstalled.addListener(() => {
+  // Create parent context menu item for torrent links
+  chrome.contextMenus.create({
+    id: "seedhelperTorrentMenu",
+    title: "Upload to ruTorrent",
+    contexts: ["link"],
+    targetUrlPatterns: ["*://*/*.torrent", "*://*/*.torrent?*"]
+  });
+
+  // Initial placeholder menu item - will be replaced dynamically
+  chrome.contextMenus.create({
+    id: "loadingLocations",
+    parentId: "seedhelperTorrentMenu",
+    title: "Loading upload locations...",
+    contexts: ["link"]
+  });
+
+  // Update context menu with available upload locations
+  initializeContextMenuWithUploadLocations();
+});
+
+// Initialize context menu with available upload locations
+function initializeContextMenuWithUploadLocations() {
+  // Get configuration from storage
+  chrome.storage.sync.get(['rutorrentConfig'], (result) => {
+    if (!result.rutorrentConfig) return;
+
+    const config = result.rutorrentConfig;
+
+    // Ensure backward compatibility with old config format
+    if (!config.uploadLocations) {
+      config.uploadLocations = [{
+        id: '1',
+        directory: (config as any).defaultDirectory || '',
+        label: (config as any).defaultLabel || '',
+        isActive: true
+      }];
+    }
+
+    // Remove existing location menu items
+    chrome.contextMenus.remove("loadingLocations", () => {
+      // Create menu items for each upload location
+      config.uploadLocations.forEach((location: { id: any; isActive: any }) => {
+        const locationName = getLocationDisplayNameForMenu(location)
+        const menuId = `upload-to-${location.id}`
+
+        chrome.contextMenus.create({
+          id: menuId,
+          parentId: 'seedhelperTorrentMenu',
+          title: locationName,
+          contexts: ['link'],
+          // Add a checkmark to the active location
+          checked: location.isActive,
+          type: 'normal',
+        })
+      })
+    });
+  });
+}
+
+// Get display name for location in context menu
+function getLocationDisplayNameForMenu(location: any): string {
+  if (location.label && location.directory) {
+    return `${location.label} (${location.directory})`;
+  } else if (location.label) {
+    return location.label;
+  } else if (location.directory) {
+    return location.directory;
+  } else {
+    return "Default Location";
+  }
+}
+
+// Listen for context menu clicks
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId.toString().startsWith('upload-to-')) {
+    const locationId = info.menuItemId.toString().replace('upload-to-', '');
+    const torrentUrl = info.linkUrl;
+
+    if (torrentUrl) {
+      // Get configuration from storage
+      chrome.storage.sync.get(['rutorrentConfig'], (result) => {
+        if (!result.rutorrentConfig) {
+          notifyUser('SeedHelper Error', 'ruTorrent server configuration not found. Please configure it in the side panel.');
+          return;
+        }
+
+        const config = result.rutorrentConfig;
+
+        // Ensure backward compatibility with old config format
+        if (!config.uploadLocations) {
+          config.uploadLocations = [{
+            id: '1',
+            directory: (config as any).defaultDirectory || '',
+            label: (config as any).defaultLabel || '',
+            isActive: true
+          }];
+        }
+
+        // Find the selected location
+        const selectedLocation = config.uploadLocations.find(
+          (loc: { id: string }) => loc.id === locationId,
+        )
+
+        if (!selectedLocation) {
+          notifyUser('SeedHelper Error', 'Selected upload location not found.');
+          return;
+        }
+
+        // Extract filename from URL
+        const fileName = getTorrentFileName(torrentUrl);
+
+        // Upload the torrent to the selected location
+        uploadTorrentFromContextMenu(torrentUrl, config, fileName, selectedLocation);
+      });
+    }
+  }
+});
+
+// Function to upload torrent to a specific location from context menu
+function uploadTorrentFromContextMenu(torrentUrl: string, config: any, fileName: string, location: any) {
+  console.log(`Uploading torrent ${fileName} to ${location.directory || 'default directory'}`);
+
+  // Fetch the torrent file
+  fetch(torrentUrl)
+    .then(response => response.blob())
+    .then(blob => {
+      // Create form data for upload
+      const formData = new FormData();
+      formData.append('torrent_file', blob, fileName);
+
+      // Add directory if specified
+      if (location.directory) {
+        formData.append('dir_edit', location.directory);
+      }
+
+      // Add label if specified
+      if (location.label) {
+        formData.append('label', location.label);
+      }
+
+      // Set up authentication if enabled
+      let headers = new Headers();
+      if (config.authEnabled && config.username && config.password) {
+        const authString = `${config.username}:${config.password}`;
+        const encodedAuth = btoa(authString);
+        headers.append('Authorization', `Basic ${encodedAuth}`);
+      }
+
+      // Upload to ruTorrent
+      return fetch(`${config.serverUrl}/php/addtorrent.php`, {
+        method: 'POST',
+        headers: headers,
+        body: formData
+      });
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.text();
+    })
+    .then(() => {
+      // Show success notification
+      showUploadSuccessAlert(fileName, config, location);
+
+      // Notify user
+      notifyUser('Torrent Upload Success', `${fileName} has been uploaded to ${location.directory || 'default directory'}`);
+    })
+    .catch(error => {
+      console.error('Error uploading torrent:', error);
+      notifyUser('Upload Error', `Failed to upload ${fileName}: ${error.message}`);
+    });
+}
+
+// Listen for changes in storage to update context menu
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'sync' && changes.rutorrentConfig) {
+    // Update context menu when configuration changes
+    initializeContextMenuWithUploadLocations();
+  }
+});
