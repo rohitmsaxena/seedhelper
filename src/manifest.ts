@@ -5,7 +5,7 @@ import packageData from '../package.json'
 const isDev = process.env.NODE_ENV == 'development'
 
 export default defineManifest({
-  name: `${packageData.displayName || packageData.name}${isDev ? ` ➡️ Dev` : ''}`,
+  name: `${packageData.displayName || packageData.name}${isDev ? `DEV` : ''}`,
   description: "Upload torrent files directly to ruTorrent client",
   version: packageData.version,
   manifest_version: 3,
