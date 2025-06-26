@@ -172,6 +172,8 @@ export const SidePanel = () => {
   // Enable editing mode
   const enableEditing = () => {
     setIsEditing(true);
+    // Open the server configuration accordion when edit button is pressed
+    setActiveAccordion('server');
   };
 
   // Save configuration
@@ -185,11 +187,8 @@ export const SidePanel = () => {
       // Update server configured state
       setIsServerConfigured(!!serverConfig.serverUrl);
 
-      // Switch to upload settings if server is now configured
-      if (!!serverConfig.serverUrl) {
-        setActiveAccordion('upload');
-      }
-
+      // Don't switch accordion after saving settings
+      
       setTimeout(() => setSaveStatus(''), 3000);
     });
   };
@@ -219,7 +218,7 @@ export const SidePanel = () => {
             setSaveStatus(`Connection successful!`);
             setIsEditing(false); // Keep fields disabled on success
             setIsServerConfigured(true);
-            setActiveAccordion('upload'); // Switch to upload settings on success
+            // Don't switch accordion on success
           } else {
             setSaveStatus(`Error: ${response?.message || 'Connection failed'}`);
             setIsEditing(true); // Enable editing on failure
